@@ -36,6 +36,10 @@ LOG="${HOME}/Library/Logs/grafana-metrics-archive.log"
 # Seconds to wait in the visible window before running.
 COUNTDOWN=5
 
+# Prometheus's lock file. Its presence means an instance is currently serving
+# the same TSDB, so the archiver must not run.
+TSDB_LOCK="${SCRIPT_DIR}/data/tsdb/lock"
+
 
 # ---------------------------------------------------------------------------
 # Scheduling helpers
@@ -148,6 +152,28 @@ OSA_EOF
 
 
 # ---------------------------------------------------------------------------
+# Guarding against concurrent access to data/tsdb
+# ---------------------------------------------------------------------------
+
+check_tsdb_free() {
+    # Prometheus creates this lock file while it serves a TSDB and removes it on
+    # a clean shutdown. Its presence means something is already reading the data.
+    [ -e "$TSDB_LOCK" ] || return 0
+
+    echo "A Prometheus instance appears to be using data/tsdb:" >&2
+    echo "  ${TSDB_LOCK}" >&2
+    echo "Stop it before archiving so only one process touches the TSDB." >&2
+
+    if [ "${FORCE:-0}" = "1" ]; then
+        echo "FORCE=1 set; continuing despite the lock." >&2
+        return 0
+    fi
+    echo "Set FORCE=1 to override if you are sure the lock is stale." >&2
+    return 1
+}
+
+
+# ---------------------------------------------------------------------------
 # The actual work, run inside the visible window
 # ---------------------------------------------------------------------------
 
@@ -159,6 +185,15 @@ run_windowed() {
     echo " $(date '+%Y-%m-%d %H:%M:%S')"
     echo "==================================================================="
     echo
+
+    # Refuse to run if a Prometheus reader is using the same TSDB.
+    if ! check_tsdb_free; then
+        echo
+        echo "==================================================================="
+        echo " Aborted. You can close this window."
+        echo "==================================================================="
+        exit 1
+    fi
 
     # Visible wait that does not accept any user input.
     i="$COUNTDOWN"

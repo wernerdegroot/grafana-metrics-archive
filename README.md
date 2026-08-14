@@ -130,6 +130,8 @@ When the schedule fires, a new Terminal window pops up, counts down 5 seconds (i
 
 > **Important**
 > Only one process should touch the TSDB directory at a time. Don't run the archiver while a Prometheus instance is reading the same `data/tsdb`.
+>
+> [daily-archive.sh](daily-archive.sh) guards this automatically: it refuses to start if a Prometheus instance is serving `data/tsdb` (detected via its lock file). Override a stale lock with `FORCE=1`.
 
 ## Inspecting the archive
 
