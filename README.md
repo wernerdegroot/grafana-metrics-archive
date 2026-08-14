@@ -28,6 +28,7 @@ Bounded windows keep each Remote Read request small, which matters when catching
 | Path | Purpose |
 | --- | --- |
 | [archive.sh](archive.sh) | The incremental export script (container entrypoint). |
+| [daily-archive.sh](daily-archive.sh) | macOS: self-scheduling launcher that runs the archiver in a visible window at 09:55. |
 | [Dockerfile](Dockerfile) | Builds a small Alpine image bundling `mimirtool`. |
 | [compose.yaml](compose.yaml) | Runs the archiver with your `.env` and `./data` volume. |
 | [prometheus.yml](prometheus.yml) | Minimal config for inspecting the archive with Prometheus. |
@@ -108,6 +109,24 @@ It progresses in six-hour pieces from the lookback point up to `now - LAG_SECOND
 ### Running on a schedule
 
 Run the container periodically (e.g. via `cron` or a scheduler) with `docker compose up`. Each run resumes from the saved checkpoint and only fetches what's new, so overlapping downtime is handled automatically. Runs are idempotent and exit early if the archive is already caught up.
+
+#### macOS: a visible daily run
+
+[daily-archive.sh](daily-archive.sh) schedules the archiver on macOS via a `launchd` LaunchAgent that fires every day at **09:55**. If the laptop is asleep or off at that time, the missed run happens as soon as it wakes.
+
+Just run it once to schedule itself:
+
+```sh
+./daily-archive.sh
+```
+
+When the schedule fires, a new Terminal window pops up, counts down 5 seconds (ignoring input), runs `docker compose up` with visible output, and stays open until you close it.
+
+```sh
+./daily-archive.sh status     # is it scheduled?
+./daily-archive.sh run        # open the window now (test it)
+./daily-archive.sh uninstall  # remove the schedule
+```
 
 > **Important**
 > Only one process should touch the TSDB directory at a time. Don't run the archiver while a Prometheus instance is reading the same `data/tsdb`.
