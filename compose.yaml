@@ -1,0 +1,13 @@
+services:
+  archive:
+    build:
+      context: .
+      args:
+        MIMIRTOOL_VERSION: 3.1.4
+
+    env_file:
+      - .env
+
+    volumes:
+      - ./data:/data
+
